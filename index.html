@@ -1,0 +1,375 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <meta charset="utf-8" />
+    <style type="text/css">
+      html {
+        height: 100%;
+      }
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .info {
+        width: 19rem;
+        padding: 8px 12px;
+        font: 14px/16px Arial, Helvetica, sans-serif;
+        background: rgba(255, 255, 255, 0.8);
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        border-radius: 5px;
+      }
+      .info h4 {
+        margin: 0 0 5px;
+        color: #777;
+      }
+      .info h3 {
+        margin-top: 8px;
+        text-align: center;
+      }
+      .legend {
+        text-align: left;
+        line-height: 18px;
+        color: #555;
+      }
+      .legend i {
+        width: 18px;
+        height: 16px;
+        float: left;
+        margin-right: 2px;
+      }
+      .f-left {
+        overflow: auto;
+        float: left;
+      }
+      .pl-30 {
+        padding-left: 30px;
+      }
+    </style>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+      integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+      integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+      crossorigin=""
+    ></script>
+  </head>
+  <body>
+    <div
+      id="map_canvas"
+      style="position: absolute; left: 0px; top: 0px; width: 100%; height: 100%"
+    ></div>
+    <script src="colors.js"></script>
+    <script src="granice.js"></script>
+    <script src="wyniki.js"></script>
+    <script src="obwody.js"></script>
+    <script>
+      var mapController = (function () {
+        var _view = {};
+        var _candidates = ["TRZASKOWSKI Rafał Kazimierz", "JAKI Patryk Tomasz"];
+        return {
+          candidates: _candidates,
+          selected: "",
+          results: resultsJSON,
+          view: function (v) {
+            if (v) {
+              _view = v;
+            }
+            return _view;
+          },
+          scaleFactor: function () {
+            return Math.pow(2, _view.map.getZoom() - 11) / 12;
+          },
+          selectFeature: function (feature) {
+            if (feature) _view.info.update(feature);
+            else {
+              _view.info.update();
+              _view.info.addListeners();
+            }
+          },
+          selectCandidate: function (candidate) {
+            this.selected = candidate;
+            _view.updateMap();
+            _view.legend.update();
+          },
+        };
+      })();
+
+      var mapView = (function (c) {
+        var _controller = c;
+        var _tileUrl =
+          "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png";
+        var _tileOptions = {
+          maxZoom: 15,
+          attribution:
+            '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>,' +
+            ' &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a>' +
+            ' &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors',
+        };
+        var _bordersOptions = {
+          style: function (feature) {
+            return {
+              fillColor: "#c0c0d0",
+              fillOpacity: 0.4,
+              color: "#ffffff",
+            };
+          },
+        };
+        var _precinctsOptions = {
+          style: function (feature) {
+            if (_controller.selected) {
+              return {
+                fillColor: getColor(
+                  _controller.results[feature.properties.obwod][
+                    _controller.selected
+                  ] / feature.properties.glosow
+                ),
+                radius:
+                  Math.sqrt(feature.properties.glosow) *
+                  _controller.scaleFactor(),
+              };
+            } else {
+              return {
+                fillColor: getColors(
+                  _controller.results[feature.properties.obwod][
+                    _controller.candidates[0]
+                  ] / feature.properties.glosow,
+                  _controller.results[feature.properties.obwod][
+                    _controller.candidates[1]
+                  ] / feature.properties.glosow
+                ),
+                radius:
+                  Math.sqrt(feature.properties.glosow) *
+                  _controller.scaleFactor(),
+              };
+            }
+          },
+          pointToLayer: function (feature, latlng) {
+            var circle = L.circleMarker(latlng, {
+              color: "#000",
+              weight: 0,
+              opacity: 1,
+              fillOpacity: 1,
+            });
+            return circle;
+          },
+          onEachFeature: function (feature, layer) {
+            layer.on({
+              mouseover: function (e) {
+                layer.setStyle({
+                  weight: 1,
+                });
+                _controller.selectFeature(feature);
+              },
+              mouseout: function (e) {
+                layer.setStyle({
+                  weight: 0,
+                });
+                _controller.selectFeature();
+              },
+            });
+          },
+        };
+        var _precincts = {};
+        var _updateMap = function () {
+          _precincts.eachLayer(function (layer) {
+            if (layer.feature && layer.feature.properties) {
+              layer.setStyle(_precinctsOptions.style(layer.feature));
+            }
+          });
+        };
+
+        return {
+          controller: _controller,
+          map: (function () {
+            var map = L.map("map_canvas");
+            map.on({
+              zoomend: _updateMap,
+            });
+            return map;
+          })(),
+
+          info: (function () {
+            var info = L.control({ position: "bottomright" });
+            var _div = L.DomUtil.create("div", "info");
+            info.onAdd = function (map) {
+              this.update();
+              return _div;
+            };
+            info.update = function (feature) {
+              var infoHTML;
+              if (feature) {
+                var prop = feature.properties;
+                infoHTML = "<h4>Precinct no " + prop.obwod + "<br/>";
+                var votes = prop.glosow / prop.wyborcow,
+                  result =
+                    Math.floor(votes * 100) +
+                    "." +
+                    (Math.floor(votes * 1000) % 10) +
+                    "%",
+                  total = _controller.results[prop.obwod]["razem"];
+                infoHTML += "Voter turnout: " + result + "</h4>";
+
+                for (var i = 0; i < _controller.candidates.length; i++) {
+                  votes =
+                    _controller.results[prop.obwod][_controller.candidates[i]] /
+                    total;
+                  result =
+                    Math.floor(votes * 100) +
+                    "." +
+                    (Math.floor(votes * 1000) % 10) +
+                    "%";
+                  infoHTML +=
+                    "<small>" +
+                    _controller.candidates[i] +
+                    ": <b>" +
+                    result +
+                    "</b></small><br>";
+                }
+              } else {
+                infoHTML =
+                  "<h4>Hover over a precinct to see detailed results, or select the candidate:</h4>" +
+                  '<small><a id="a" href="#">' +
+                  _controller.candidates[0] +
+                  " vs. " +
+                  _controller.candidates[1] +
+                  "</a></small><br>";
+                for (var i = 0; i < _controller.candidates.length; i++) {
+                  infoHTML +=
+                    '<small><a id="a' +
+                    i +
+                    '" href="#">' +
+                    _controller.candidates[i] +
+                    "</a></small><br>";
+                }
+              }
+              _div.innerHTML = infoHTML;
+            };
+            info.addListeners = function () {
+              for (var i = 0; i < _controller.candidates.length; i++) {
+                document.getElementById("a").addEventListener(
+                  "click",
+                  (function () {
+                    return function (e) {
+                      e.preventDefault();
+                      _controller.selectCandidate("");
+                    };
+                  })()
+                );
+                document.getElementById("a" + i).addEventListener(
+                  "click",
+                  (function (kandydat) {
+                    return function (e) {
+                      e.preventDefault();
+                      _controller.selectCandidate(kandydat);
+                    };
+                  })(_controller.candidates[i])
+                );
+              }
+            };
+            return info;
+          })(),
+
+          legend: (function () {
+            var grades = [0, 10, 20, 30, 40, 50, 60, 70, 80],
+              labels = [],
+              labels2d = [],
+              from,
+              to;
+
+            for (var i = 0; i < grades.length - 1; i++) {
+              from = grades[i];
+              to = grades[i + 1];
+
+              labels.push(
+                '<i style="background:' +
+                  getColor((from + 5) * 0.01) +
+                  '"></i>&nbsp;' +
+                  from +
+                  "%&ndash;" +
+                  to +
+                  "%"
+              );
+              var label = "";
+              for (var j = 0; j < grades.length - i - (i == 0 ? 1 : 0); j++) {
+                label +=
+                  '<i style="background:' +
+                  getColors((grades[j] + 5) * 0.01, (grades[i] + 5) * 0.01) +
+                  '"></i> ';
+              }
+              labels2d.push(label);
+            }
+            var _labels =
+              '<div style="padding:8px">' + labels.join("<br/>") + "</div>";
+            var _labels2d =
+              '<div class="f-left" style="padding-left:8px">0%</div>' +
+              '<div class="f-left" style="padding-top:18px">' +
+              labels2d.join("<br/>") +
+              '</div><div class="f-left">80%</div>' +
+              '<div style="clear:both">80%</div>';
+            var _div = L.DomUtil.create("div", "info legend");
+            var legend = L.control();
+
+            legend.onAdd = function (map) {
+              this.update();
+              return _div;
+            };
+            legend.update = function (feature) {
+              if (_controller.selected) {
+                _div.innerHTML =
+                  "<h3>Results of the 21 October 2018 election for the Mayor of Warsaw</h3>" +
+                  '<h4 class="pl-30">' +
+                  _controller.selected +
+                  "</h4>" +
+                  _labels;
+              } else {
+                _div.innerHTML =
+                  "<h3>Results of the 21 October 2018 election for the Mayor of Warsaw</h3>" +
+                  '<div class="pl-30">' +
+                  '<h4 class="pl-30">' +
+                  _controller.candidates[0] +
+                  "</h4>" +
+                  _labels2d +
+                  '<div style="transform: rotate(-90deg) translatex(40px); transform-origin: bottom left">' +
+                  "<h4>" +
+                  _controller.candidates[1] +
+                  "</h4></div>" +
+                  "</div>";
+              }
+            };
+            return legend;
+          })(),
+
+          precincts: _precincts,
+
+          style: _precinctsOptions.style,
+
+          updateMap: _updateMap,
+
+          addLayers: function () {
+            L.tileLayer(_tileUrl, _tileOptions).addTo(this.map);
+            L.geoJSON(bordersJSON, _bordersOptions).addTo(this.map);
+
+            this.legend.addTo(this.map);
+            this.info.addTo(this.map);
+            this.info.addListeners();
+            _precincts = L.geoJSON(precinctsJSON, _precinctsOptions).addTo(
+              this.map
+            );
+
+            this.map.setView([52.24, 21.08], 11);
+          },
+        };
+      })(mapController);
+
+      mapController.view(mapView);
+
+      mapView.addLayers();
+    </script>
+  </body>
+</html>
