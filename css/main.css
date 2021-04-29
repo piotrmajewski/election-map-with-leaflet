@@ -1,0 +1,61 @@
+html {
+  height: 100%;
+}
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+.info {
+  width: 19rem;
+  padding: 8px 12px;
+  font: 14px Arial, Helvetica, sans-serif;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+}
+.info h4 {
+  margin: 0 0 8px;
+  color: #777;
+}
+.info h3 {
+  margin-top: 8px;
+  text-align: center;
+}
+.legend {
+  text-align: left;
+  line-height: 18px;
+  color: #555;
+}
+.legend i {
+  width: 18px;
+  height: 16px;
+  float: left;
+  margin-right: 2px;
+}
+.legend h4 {
+  padding-left: 35px;
+}
+.pl-30 {
+  padding-left: 32px;
+}
+.labels2d div
+{
+  overflow: auto;
+  float: left;
+  width: 32px;
+  text-align: right;
+}
+.labels2d div:last-child
+{
+  float: none;
+  clear: both;
+}
+.labels2d #tiles {
+  padding-top: 18px;
+  width: auto;
+}
+.vertical-head {
+  transform: rotate(-90deg);
+  transform-origin: bottom left;
+}
